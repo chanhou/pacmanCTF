@@ -30,9 +30,8 @@ from util import nearestPoint
 #################
 # Team creation #
 #################
-
-def createTeam(firstIndex, secondIndex, isRed,
-               first = 'OffensiveReflexAgent', second = 'DefensiveReflexAgent'):
+def createTeam(index, isRed,
+               first = 'OffensiveReflexAgent', second = 'OffensiveReflexAgent', third = 'DefensiveReflexAgent'):
   """
   This function should return a list of two agents that will form the
   team, initialized using firstIndex and secondIndex as their agent
@@ -47,7 +46,12 @@ def createTeam(firstIndex, secondIndex, isRed,
   any extra arguments, so you should make sure that the default
   behavior is what you want for the nightly contest.
   """
-  return [eval(first)(firstIndex), eval(second)(secondIndex)]
+  if len(index) == 1:
+    return [eval(first)(index[0])]
+  elif len(index) == 2:
+    return [eval(first)(index[0]), eval(second)(index[1])]
+  elif len(index) == 3:
+    return [eval(first)(index[0]), eval(second)(index[1]), eval(third)(index[2])]
 
 ##########
 # Agents #

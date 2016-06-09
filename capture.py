@@ -809,6 +809,9 @@ def readCommand( argv ):
   parser.add_option('-c', '--catchExceptions', action='store_true', default=False,
                     help='Catch exceptions and enforce time limits')
 
+  parser.add_option('-a', '--numAgents', type='int',
+                    help=default('Number of agents on each team'), default=2)
+
   options, otherjunk = parser.parse_args(argv)
   assert len(otherjunk) == 0, "Unrecognized options: " + str(otherjunk)
   args = dict()
@@ -852,14 +855,15 @@ def readCommand( argv ):
 
   # Choose a pacman agent
   redArgs, blueArgs = parseAgentArgs(options.redOpts), parseAgentArgs(options.blueOpts)
+  numAgents = options.numAgents
   if options.numTraining > 0:
     redArgs['numTraining'] = options.numTraining
     blueArgs['numTraining'] = options.numTraining
   nokeyboard = options.textgraphics or options.quiet or options.numTraining > 0
   print '\nRed team %s with %s:' % (options.red, redArgs)
-  redAgents = loadAgents(True, options.red, nokeyboard, redArgs)
+  redAgents = loadAgents(True, options.red, nokeyboard, redArgs, numAgents)
   print '\nBlue team %s with %s:' % (options.blue, blueArgs)
-  blueAgents = loadAgents(False, options.blue, nokeyboard, blueArgs)
+  blueAgents = loadAgents(False, options.blue, nokeyboard, blueArgs, numAgents)
   args['agents'] = sum([list(el) for el in zip(redAgents, blueAgents)],[]) # list of agents
 
   numKeyboardAgents = 0
@@ -907,7 +911,7 @@ def randomLayout(seed = None):
   return mazeGenerator.generateMaze(seed)
 
 import traceback
-def loadAgents(isRed, factory, textgraphics, cmdLineArgs):
+def loadAgents(isRed, factory, textgraphics, cmdLineArgs, numAgents):
   "Calls agent factories and returns lists of agents"
   try:
     if not factory.endswith(".py"):
@@ -917,7 +921,7 @@ def loadAgents(isRed, factory, textgraphics, cmdLineArgs):
   except (NameError, ImportError):
     print >>sys.stderr, 'Error: The team "' + factory + '" could not be loaded! '
     traceback.print_exc()
-    return [None for i in range(2)]
+    return [None for i in range(numAgents)]
 
   args = dict()
   args.update(cmdLineArgs)  # Add command line args with priority
@@ -933,13 +937,13 @@ def loadAgents(isRed, factory, textgraphics, cmdLineArgs):
   except AttributeError:
     print >>sys.stderr, 'Error: The team "' + factory + '" could not be loaded! '
     traceback.print_exc()
-    return [None for i in range(2)]
+    return [None for i in range(numAgents)]
 
   indexAddend = 0
   if not isRed:
     indexAddend = 1
-  indices = [2*i + indexAddend for i in range(2)]
-  return createTeamFunc(indices[0], indices[1], isRed, **args)
+  indices = [2*i + indexAddend for i in range(numAgents)]
+  return createTeamFunc(indices, isRed, **args)
 
 def replayGame( layout, agents, actions, display, length, redTeamName, blueTeamName ):
     rules = CaptureRules()

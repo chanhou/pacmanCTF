@@ -125,7 +125,7 @@ class Layout:
         elif layoutChar in ['G']:
             self.agentPositions.append( (1, (x, y) ) )
             self.numGhosts += 1
-        elif layoutChar in  ['1', '2', '3', '4']:
+        elif layoutChar in  ['1', '2', '3', '4', '5', '6']:
             self.agentPositions.append( (int(layoutChar), (x,y)))
             self.numGhosts += 1
 def getLayout(name, back = 2):
