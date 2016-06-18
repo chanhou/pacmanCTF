@@ -858,7 +858,12 @@ def readCommand( argv ):
   numAgents = options.numAgents
   if options.numTraining > 0:
     redArgs['numTraining'] = options.numTraining
-    blueArgs['numTraining'] = options.numTraining
+    # redArgs['numQuiet'] = options.numTraining
+    # redArgs['numIgnore'] = options.numTraining
+    # blueArgs['numTraining'] = options.numTraining
+    options.numQuiet = options.numTraining
+    options.numIgnore = options.numTraining
+
   nokeyboard = options.textgraphics or options.quiet or options.numTraining > 0
   print '\nRed team %s with %s:' % (options.red, redArgs)
   redAgents = loadAgents(True, options.red, nokeyboard, redArgs, numAgents)
@@ -913,6 +918,7 @@ def randomLayout(seed = None):
 import traceback
 def loadAgents(isRed, factory, textgraphics, cmdLineArgs, numAgents):
   "Calls agent factories and returns lists of agents"
+  # redAgents = loadAgents(True, options.red, nokeyboard, redArgs, numAgents)
   try:
     if not factory.endswith(".py"):
       factory += ".py"

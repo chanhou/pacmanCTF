@@ -32,7 +32,8 @@ from util import nearestPoint
 # Team creation #
 #################
 def createTeam(index, isRed,
-               first = 'ApproximateQAgent', second = 'ApproximateQAgent', third = 'ApproximateQAgent'):
+               first = 'AttackQAgent', second = 'DefenseQAgent', third = 'ApproximateQAgent', 
+               **args):
   """
   This function should return a list of two agents that will form the
   team, initialized using firstIndex and secondIndex as their agent
@@ -50,7 +51,7 @@ def createTeam(index, isRed,
   if len(index) == 1:
     return [eval(first)(index[0])]
   elif len(index) == 2:
-    return [eval(first)(index[0]), eval(second)(index[1])]
+    return [eval(first)(index[0], **args), eval(second)(index[1], **args)]
   elif len(index) == 3:
     return [eval(first)(index[0]), eval(second)(index[1]), eval(third)(index[2])]
 
@@ -164,6 +165,15 @@ class QLearningAgent(CaptureAgent):
           return None
         return random.choice(bestActions)
 
+    def doAction(self,state,action):
+        """
+            Called by inherited class when
+            an action is taken in a state
+        """
+        self.lastState = state
+        self.lastAction = action
+
+
     def chooseAction(self, gameState):
         """
           Compute the action to take in the current state.  With
@@ -185,6 +195,7 @@ class QLearningAgent(CaptureAgent):
 
         self.doAction(gameState,action) # from Q learning agent
         return action
+
 
     def update(self, state, action, nextState, reward):
         """
