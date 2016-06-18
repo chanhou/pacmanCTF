@@ -34,7 +34,7 @@ from util import nearestPoint
 # Team creation #
 #################
 def createTeam(index, isRed,
-               first = 'OffensiveQAgent', second = 'ApproximateQAgent', third = 'ApproximateQAgent'):
+               first = 'ApproximateQAgent', second = 'ApproximateQAgent', third = 'ApproximateQAgent', **args):
   """
   This function should return a list of two agents that will form the
   team, initialized using firstIndex and secondIndex as their agent
@@ -50,11 +50,11 @@ def createTeam(index, isRed,
   behavior is what you want for the nightly contest.
   """
   if len(index) == 1:
-    return [eval(first)(index[0])]
+    return [eval(first)(index[0], **args)]
   elif len(index) == 2:
-    return [eval(first)(index[0]), eval(second)(index[1])]
+    return [eval(first)(index[0], **args), eval(second)(index[1], **args)]
   elif len(index) == 3:
-    return [eval(first)(index[0]), eval(second)(index[1]), eval(third)(index[2])]
+    return [eval(first)(index[0], **args), eval(second)(index[1], **args), eval(third)(index[2], **args)]
 
 ##########
 # Agents #
@@ -80,9 +80,9 @@ class QLearningAgent(CaptureAgent):
       - self.getLegalActions(state)
         which returns legal actions for a state
   """
-  def __init__(self, index, timeForComputing = .1, numTraining=100, epsilon=0.5, alpha=0.5, gamma=1):
+  def __init__(self, index, timeForComputing = .1, numTraining=0, epsilon=0.5, alpha=0.5, gamma=1, **args):
     """
-    actionFn: Function which takes a state and returns the list of legal actions
+    actionFn: Function which takes a state and returns the list of legal actions - REMOVED
 
     alpha    - learning rate
     epsilon  - exploration rate
@@ -102,6 +102,21 @@ class QLearningAgent(CaptureAgent):
   def registerInitialState(self, gameState):
     self.start = gameState.getAgentPosition(self.index)
     CaptureAgent.registerInitialState(self, gameState)
+    self.startEpisode()
+    if self.episodesSoFar == 0:
+      print 'Beginning %d episodes of Training' % (self.numTraining)
+
+  def observationFunction(self, state):
+    """
+      This is where we ended up after our last action.
+      The simulation should somehow ensure this is called
+    """
+    if not self.lastState is None:
+      reward = state.getScore() - self.lastState.getScore()
+      self.observeTransition(self.lastState, self.lastAction, state, reward)
+
+    return CaptureAgent.observationFunction(self, state)
+    # return state
 
   def getQValue(self, state, action):
     """
@@ -111,7 +126,7 @@ class QLearningAgent(CaptureAgent):
     """
     return self.qValues[(state, action)]
 
-  def computeValueFromQValues(self, state):
+  def computeValueFromQValues(self, gameState):
     """
       Returns max_action Q(state,action)
       where the max is over legal actions.  Note that if
@@ -119,11 +134,13 @@ class QLearningAgent(CaptureAgent):
       terminal state, you should return a value of 0.0.
     """
     actions = state.getLegalActions(self.index)
-
+    
+    if len(actions) == 0:
+      return 0.0
     # You can profile your evaluation time by uncommenting these lines
     # start = time.time()
     values = [self.getQValue(gameState, a) for a in actions]
-    # print 'eval time for agent %d: %.4f' % (self.index, time.time() - start)
+    # print 'eval time for agent %:wd: %.4f' % (self.index, time.time() - start)
 
     return max(values)
 
@@ -142,8 +159,17 @@ class QLearningAgent(CaptureAgent):
 
     maxValue = max(values)
     bestActions = [a for a, v in zip(actions, values) if v == maxValue]
-
+    if len(bestActions) == 0:
+      return None
     return random.choice(bestActions)
+
+  def doAction(self,state,action):
+    """
+        Called by inherited class when
+        an action is taken in a state
+    """
+    self.lastState = state
+    self.lastAction = action
 
   def chooseAction(self, gameState):
     """
@@ -158,10 +184,13 @@ class QLearningAgent(CaptureAgent):
     """
     # Pick Action
     actions = gameState.getLegalActions(self.index)
+    action = None
     if util.flipCoin(self.epsilon):
       action = random.choice(actions)
     else:
       action = self.computeActionFromQValues(gameState)
+
+    self.doAction(gameState,action) # from Q learning agent
     return action
 
   def update(self, state, action, nextState, reward):
@@ -175,18 +204,51 @@ class QLearningAgent(CaptureAgent):
     """
     self.qValues[(state, action)] = (1-self.alpha)*self.qValues[(state, action)] + self.alpha*(reward + self.discount*self.computeValueFromQValues(nextState))
 
-  def getPolicy(self, state):
-    return self.computeActionFromQValues(state)
+  def observeTransition(self, state,action,nextState,deltaReward):
+    """
+        Called by environment to inform agent that a transition has
+        been observed. This will result in a call to self.update
+        on the same arguments
 
-  def getValue(self, state):
-    return self.computeValueFromQValues(state)
+        NOTE: Do *not* override or call this function
+    """
+    self.episodeRewards += deltaReward
+    self.update(state,action,nextState,deltaReward)
+
+  def startEpisode(self):
+    """
+      Called by environment when new episode is starting
+    """
+    self.lastState = None
+    self.lastAction = None
+    self.episodeRewards = 0.0
+
+  def stopEpisode(self):
+    """
+      Called by environment when episode is done
+    """
+    if self.episodesSoFar < self.numTraining:
+      self.accumTrainRewards += self.episodeRewards
+    else:
+      self.accumTestRewards += self.episodeRewards
+    self.episodesSoFar += 1
+    if self.episodesSoFar >= self.numTraining:
+      # Take off the training wheels
+      self.epsilon = 0.0    # no exploration
+      self.alpha = 0.0      # no learning
+
+  def isInTraining(self):
+    return self.episodesSoFar < self.numTraining
+
+  def isInTesting(self):
+    return not self.isInTraining()
 
 class ApproximateQAgent(QLearningAgent):
   """
      ApproximateQLearningAgent
 
      You should only have to overwrite getQValue
-     and update.  All other QLearningAgent functions
+     and update. All other QLearningAgent functions
      should work as is.
   """
   def __init__(self, index, timeForComputing = .1, extractor='IdentityExtractor', **args):
@@ -214,8 +276,8 @@ class ApproximateQAgent(QLearningAgent):
 
     # You can profile your evaluation time by uncommenting these lines
     # start = time.time()
-    values = [self.evaluate(gameState, a) for a in actions]
-    # print 'eval time for agent %d: %.4f' % (self.index, time.time() - start)
+    values = [self.getQValue(nextState, a) for a in actions]
+    # print 'eval time for agent %wd: %.4f' % (self.index, time.time() - start)
 
     maxValue = max(values)
 
@@ -244,8 +306,8 @@ class OffensiveQAgent(ApproximateQAgent):
   """
   def __init__(self, index, timeForComputing = .1, extractor='OffenseExtractor', **args):
     ApproximateQAgent.__init__(self, index, timeForComputing, **args)
-    self.filename = "offensive.train"
     self.featExtractor = util.lookup(extractor, globals())()
+    self.filename = "offensive.train"
     if os.path.exists(self.filename):
       with open(self.filename, "rb") as f:
         self.weights = pickle.load(f)

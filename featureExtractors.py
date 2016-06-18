@@ -105,3 +105,7 @@ class SimpleExtractor(FeatureExtractor):
 class OffenseExtractor(FeatureExtractor):
     def getFeatures(self, state, action):
         util.raiseNotDefined()
+
+class DefenseExtractor(FeatureExtractor):
+    def getFeatures(self, state, action):
+        util.raiseNotDefined()
