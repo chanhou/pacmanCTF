@@ -142,8 +142,8 @@ class AttackExtractor(FeatureExtractor):
         next_x, next_y = int(x + dx), int(y + dy)
 
         # need to normalize
-        feature['dis-from-home'] = disFromHome
-        feature['dis-from-capsules'] = min([ self.getMazeDistance(myPosition, dis) for dis in capsulePos])
+        feature['dis-from-home'] = float(disFromHome)/ (walls.width * walls.height)
+        feature['dis-from-capsules'] = float(min([ self.getMazeDistance(myPosition, dis) for dis in capsulePos]))/ (walls.width * walls.height)
 
         # if (next_x, next_y) in capsulePos:
         #     feature['power'] = 1.0
