@@ -32,7 +32,7 @@ from util import nearestPoint
 # Team creation #
 #################
 def createTeam(index, isRed,
-               first = 'AttackQAgent', second = 'DefenseQAgent', third = 'ApproximateQAgent', 
+               first = 'ApproximateQAgent', second = 'ApproximateQAgent', third = 'ApproximateQAgent', 
                **args):
   """
   This function should return a list of two agents that will form the
@@ -51,7 +51,7 @@ def createTeam(index, isRed,
   if len(index) == 1:
     return [eval(first)(index[0])]
   elif len(index) == 2:
-    return [eval(first)(index[0], **args), eval(second)(index[1], **args)]
+    return [eval(first)(index[0], extractor='AttackExtractor',**args), eval(second)(index[1], extractor='DefenseExtractor', **args)]
   elif len(index) == 3:
     return [eval(first)(index[0]), eval(second)(index[1]), eval(third)(index[2])]
 
@@ -79,7 +79,7 @@ class QLearningAgent(CaptureAgent):
         - self.getLegalActions(state)
           which returns legal actions for a state
     """
-    def __init__(self, index, timeForComputing = .1, actionFn = None, numTraining=100, epsilon=0.5, alpha=0.5, gamma=1):
+    def __init__(self, index, timeForComputing = .1, actionFn = None, numTraining=100, epsilon=0.5, alpha=0.5, gamma=1, **args):
         """
         actionFn: Function which takes a state and returns the list of legal actions
 
