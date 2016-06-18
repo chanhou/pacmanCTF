@@ -106,14 +106,13 @@ class OffenseExtractor(FeatureExtractor):
     def getFeatures(self, state, action):
         # extract the grid of food and wall locations and get the ghost locations
         food = self.getFood(state)
-        # food = state.getBlueFood()
-
         walls = state.getWalls()
+
         myPosition = state.getAgentState(self.index).getPosition()
-        teammatePositions = [state.getAgentPosition(teammate) 
+        teammatePositions = [state.getAgentPosition(teammate)
                 for teammate in self.getTeam(state)]
 
-        capsulePos = self.getCapsules(state) #state.getBlueCapsules()
+        capsulePos = self.getCapsules(state)
         isHome = state.isRed(myPosition)
         disFromHome = self.getMazeDistance((state.data.layout.width/2., myposition[1]), myPosition)
         enemy = self.getOpponents(state)
@@ -130,8 +129,8 @@ class OffenseExtractor(FeatureExtractor):
         next_x, next_y = int(x + dx), int(y + dy)
 
         # need to normalize
-        feature['dis-from-home'] = disFromHome
-        feature['dis-from-capsules'] = min([ self.getMazeDistance(myPosition, dis) for dis in capsulePos])
+        feature['dis-from-home'] = float(disFromHome)/ (walls.width * walls.height)
+        feature['dis-from-capsules'] = float(min([ self.getMazeDistance(myPosition, dis) for dis in capsulePos]))/ (walls.width * walls.height)
 
         # if (next_x, next_y) in capsulePos:
         #     feature['power'] = 1.0
