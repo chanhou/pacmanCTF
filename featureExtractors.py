@@ -104,7 +104,60 @@ class SimpleExtractor(FeatureExtractor):
 
 class OffenseExtractor(FeatureExtractor):
     def getFeatures(self, state, action):
-        util.raiseNotDefined()
+        # extract the grid of food and wall locations and get the ghost locations
+        food = self.getFood(state)
+        # food = state.getBlueFood()
+
+        walls = state.getWalls()
+        myPosition = state.getAgentState(self.index).getPosition()
+        teammatePositions = [state.getAgentPosition(teammate) 
+                for teammate in self.getTeam(state)]
+
+        capsulePos = self.getCapsules(state) #state.getBlueCapsules()
+        isHome = state.isRed(myPosition)
+        disFromHome = self.getMazeDistance((state.data.layout.width/2., myposition[1]), myPosition)
+        enemy = self.getOpponents(state)
+
+        # state.data.timeleft
+
+        features = util.Counter()
+
+        features["bias"] = 1.0
+
+        # compute the location of pacman after he takes the action
+        # x, y = state.getPacmanPosition()
+        dx, dy = Actions.directionToVector(action)
+        next_x, next_y = int(x + dx), int(y + dy)
+
+        # need to normalize
+        feature['dis-from-home'] = disFromHome
+        feature['dis-from-capsules'] = min([ self.getMazeDistance(myPosition, dis) for dis in capsulePos])
+
+        # if (next_x, next_y) in capsulePos:
+        #     feature['power'] = 1.0
+
+        # if (isHome):
+        #     feature['is-home'] = 1.0
+
+        # count the number of ghosts 1-step away
+        for opponent in enemy:
+            pos = state.getAgentPosition(opponent)
+            if pos:
+                # features["#-of-ghosts-1-step-away"] = sum((next_x, next_y) in Actions.getLegalNeighbors(g, walls) for g in ghosts)
+                features["#-of-ghosts-1-step-away"] = sum((next_x, next_y) in Actions.getLegalNeighbors(pos, walls))
+
+        # if there is no danger of ghosts then add the food feature
+        if not features["#-of-ghosts-1-step-away"] and food[next_x][next_y]:
+            features["eats-food"] = 1.0
+
+        dist = closestFood((next_x, next_y), food, walls)
+        if dist is not None:
+            # make the distance a number less than one otherwise the update
+            # will diverge wildly
+            features["closest-food"] = float(dist) / (walls.width * walls.height)
+        features.divideAll(10.0)
+        return features
+
 
 class DefenseExtractor(FeatureExtractor):
     def getFeatures(self, state, action):
