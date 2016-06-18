@@ -117,21 +117,46 @@ class AttackExtractor(FeatureExtractor):
 
     def getFeatures(self, state, action):
         # extract the grid of food and wall locations and get the ghost locations
-        food = state.getFood()
+        food = self.getFood(state)
+        # food = state.getBlueFood()
+
         walls = state.getWalls()
-        ghosts = state.getGhostPositions()
+        myPosition = state.getAgentState(self.index).getPosition()
+        teammatePositions = [state.getAgentPosition(teammate) 
+                for teammate in self.getTeam(state)]
+
+        capsulePos = self.getCapsules(state) #state.getBlueCapsules()
+        isHome = state.isRed(myPosition)
+        disFromHome = self.getMazeDistance((state.data.layout.width/2., myposition[1]), myPosition)
+        enemy = self.getOpponents(state)
+
+        # state.data.timeleft
 
         features = util.Counter()
 
         features["bias"] = 1.0
 
         # compute the location of pacman after he takes the action
-        x, y = state.getPacmanPosition()
+        # x, y = state.getPacmanPosition()
         dx, dy = Actions.directionToVector(action)
         next_x, next_y = int(x + dx), int(y + dy)
 
+        # need to normalize
+        feature['dis-from-home'] = disFromHome
+        feature['dis-from-capsules'] = min([ self.getMazeDistance(myPosition, dis) for dis in capsulePos])
+
+        # if (next_x, next_y) in capsulePos:
+        #     feature['power'] = 1.0
+
+        # if (isHome):
+        #     feature['is-home'] = 1.0
+
         # count the number of ghosts 1-step away
-        features["#-of-ghosts-1-step-away"] = sum((next_x, next_y) in Actions.getLegalNeighbors(g, walls) for g in ghosts)
+        for opponent in enemy:
+            pos = state.getAgentPosition(opponent)
+            if pos:
+                # features["#-of-ghosts-1-step-away"] = sum((next_x, next_y) in Actions.getLegalNeighbors(g, walls) for g in ghosts)
+                features["#-of-ghosts-1-step-away"] = sum((next_x, next_y) in Actions.getLegalNeighbors(pos, walls))
 
         # if there is no danger of ghosts then add the food feature
         if not features["#-of-ghosts-1-step-away"] and food[next_x][next_y]:
@@ -156,9 +181,15 @@ class DefenseExtractor(FeatureExtractor):
 
     def getFeatures(self, state, action):
         # extract the grid of food and wall locations and get the ghost locations
-        food = state.getFood()
+        food = self.getFoodYouAreDefending(state)
+        myPosition = state.getAgentState(self.index).getPosition()
+        capsulePos = self.getCapsulesYouAreDefending(state) #state.getBlueCapsules()
+
         walls = state.getWalls()
-        ghosts = state.getGhostPositions()
+        isHome = state.isRed(myPosition)
+        enemy = self.getOpponents(state)
+
+        # ghosts = state.getGhostPositions()
 
         features = util.Counter()
 
@@ -183,3 +214,28 @@ class DefenseExtractor(FeatureExtractor):
             features["closest-food"] = float(dist) / (walls.width * walls.height)
         features.divideAll(10.0)
         return features
+
+    def estimateEnemyPos(self, agent, gameState):
+        """
+        Elapse belief distributions for an agent's position by one time step.
+        Assume opponents move randomly, but also check for any food lost from
+        the previous turn.
+        """
+
+        lastObserved = self.getPreviousObservation()
+        if lastObserved:
+          lostFood = [food for food in self.getFoodYouAreDefending(lastObserved).asList()
+                      if food not in self.getFoodYouAreDefending(gameState).asList()]
+          for f in lostFood:
+            updatedBeliefs[f] = 1.0/len(self.getOpponents(gameState))
+
+        self.positionBeliefs[agent] = updatedBeliefs
+
+    def fixPosition(self, agent, position):
+        """
+        Fix the position of an opponent in an agent's belief distributions.
+        """
+        updatedBeliefs = util.Counter()
+        updatedBeliefs[position] = 1.0
+        self.positionBeliefs[agent] = updatedBeliefs
+
