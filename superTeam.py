@@ -34,7 +34,7 @@ from util import nearestPoint
 # Team creation #
 #################
 def createTeam(index, isRed,
-               first = 'ApproximateQAgent', second = 'ApproximateQAgent', third = 'ApproximateQAgent', **args):
+               first = 'OffensiveQAgent', second = 'OffensiveQAgent', third = 'OffensiveQAgent', **args):
   """
   This function should return a list of two agents that will form the
   team, initialized using firstIndex and secondIndex as their agent
@@ -112,7 +112,36 @@ class QLearningAgent(CaptureAgent):
       The simulation should somehow ensure this is called
     """
     if not self.lastState is None:
-      reward = state.getScore() - self.lastState.getScore()
+      reward = (state.getScore() - self.lastState.getScore())*2
+      
+      # pseudo reward
+      reward -= 1. # one time step cost
+      agentState = state.data.agentStates[self.index]
+      otherTeam = state.getBlueTeamIndices()
+      if agentState.isPacman:
+        for index in otherTeam:
+          otherAgentState = state.data.agentStates[index]
+          if otherAgentState.isPacman: continue
+          ghostPosition = otherAgentState.getPosition()
+          if ghostPosition == None: continue
+          if distanceCalculator.manhattanDistance( ghostPosition, agentState.getPosition() ) <= 0.5:
+            # award points to the other team for killing Pacmen
+            if otherAgentState.scaredTimer <= 0:
+              reward -= 20.
+            else:
+              reward += 1.
+      else: # pacman is ghost
+        for index in otherTeam:
+          otherAgentState = state.data.agentStates[index]
+          if not otherAgentState.isPacman: continue
+          pacPos = otherAgentState.getPosition()
+          if pacPos == None: continue
+          if distanceCalculator.manhattanDistance( pacPos, agentState.getPosition() ) <= 0.5:
+            #award points to the other team for killing Pacmen
+            if agentState.scaredTimer <= 0:
+              reward += 10.
+            else:
+              reward -= 10
       self.observeTransition(self.lastState, self.lastAction, state, reward)
 
     return CaptureAgent.observationFunction(self, state)
@@ -243,6 +272,48 @@ class QLearningAgent(CaptureAgent):
   def isInTesting(self):
     return not self.isInTraining()
 
+  def final(self, state):
+    """
+      Called by Pacman game at the terminal state
+    """
+    CaptureAgent.final(self, state)
+    deltaReward = state.getScore() - self.lastState.getScore()
+    self.observeTransition(self.lastState, self.lastAction, state, deltaReward)
+    self.stopEpisode()
+
+    # Make sure we have this var
+    if not 'episodeStartTime' in self.__dict__:
+        self.episodeStartTime = time.time()
+    if not 'lastWindowAccumRewards' in self.__dict__:
+        self.lastWindowAccumRewards = 0.0
+    self.lastWindowAccumRewards += state.getScore()
+
+    NUM_EPS_UPDATE = 100
+    if self.episodesSoFar % NUM_EPS_UPDATE == 0:
+        print 'Reinforcement Learning Status:'
+        windowAvg = self.lastWindowAccumRewards / float(NUM_EPS_UPDATE)
+        if self.episodesSoFar <= self.numTraining:
+            trainAvg = self.accumTrainRewards / float(self.episodesSoFar)
+            print '\tCompleted %d out of %d training episodes' % (
+                   self.episodesSoFar,self.numTraining)
+            print '\tAverage Rewards over all training: %.2f' % (
+                    trainAvg)
+        else:
+            testAvg = float(self.accumTestRewards) / (self.episodesSoFar - self.numTraining)
+            print '\tCompleted %d test episodes' % (self.episodesSoFar - self.numTraining)
+            print '\tAverage Rewards over testing: %.2f' % testAvg
+        print '\tAverage Rewards for last %d episodes: %.2f'  % (
+                NUM_EPS_UPDATE,windowAvg)
+        print '\tEpisode took %.2f seconds' % (time.time() - self.episodeStartTime)
+        self.lastWindowAccumRewards = 0.0
+        self.episodeStartTime = time.time()
+
+    if self.episodesSoFar == self.numTraining:
+        msg = 'Training Done (turning off epsilon and alpha)'
+        print '%s\n%s' % (msg,'-' * len(msg))
+        print self.getWeights()
+
+
 class ApproximateQAgent(QLearningAgent):
   """
      ApproximateQLearningAgent
@@ -253,7 +324,7 @@ class ApproximateQAgent(QLearningAgent):
   """
   def __init__(self, index, timeForComputing = .1, extractor='IdentityExtractor', **args):
     QLearningAgent.__init__(self, index, timeForComputing, **args)
-    self.featExtractor = util.lookup(extractor, globals())()
+    # self.featExtractor = util.lookup(extractor, globals())()
     self.weights = util.Counter()
 
   def getWeights(self):
@@ -265,7 +336,8 @@ class ApproximateQAgent(QLearningAgent):
       where * is the dotProduct operator
     """
     weights = self.getWeights()
-    features = self.featExtractor.getFeatures(state, action)
+    # features = self.featExtractor.getFeatures(state, action)
+    features = self.getFeatures(state, action)
     return weights * features
 
   def update(self, state, action, nextState, reward):
@@ -282,7 +354,8 @@ class ApproximateQAgent(QLearningAgent):
     maxValue = max(values)
 
     weights = self.getWeights()
-    features = self.featExtractor.getFeatures(state, action)
+    # features = self.featExtractor.getFeatures(state, action)
+    features = self.getFeatures(state, action)
     for feature in features:
       difference = (reward + self.discount * maxValue) - self.getQValue(state, action)
       self.weights[feature] = weights[feature] + self.alpha * difference * features[feature]
@@ -290,12 +363,28 @@ class ApproximateQAgent(QLearningAgent):
   def final(self, state):
     "Called at the end of each game."
     # call the super-class final method
-    # QLearningAgent.final(self, state)
+    QLearningAgent.final(self, state)
 
     # did we finish training?
     if self.episodesSoFar == self.numTraining:
       # you might want to print your weights here for debugging
       pass
+
+  def getSuccessor(self, gameState, action):
+    """
+    Finds the next successor which is a grid position (location tuple).
+    """
+    successor = gameState.generateSuccessor(self.index, action)
+    pos = successor.getAgentState(self.index).getPosition()
+    if pos != nearestPoint(pos):
+      # Only half a grid position was covered
+      return successor.generateSuccessor(self.index, action)
+    else:
+      return successor
+
+  def getFeatures(self, state, action):
+    util.raiseNotDefined()
+    # return None
 
 class OffensiveQAgent(ApproximateQAgent):
   """
@@ -306,22 +395,122 @@ class OffensiveQAgent(ApproximateQAgent):
   """
   def __init__(self, index, timeForComputing = .1, extractor='OffenseExtractor', **args):
     ApproximateQAgent.__init__(self, index, timeForComputing, **args)
-    self.featExtractor = util.lookup(extractor, globals())()
+    # self.featExtractor = util.lookup(extractor, globals())()
     self.filename = "offensive.train"
     if os.path.exists(self.filename):
+      print 'loading weights...'
       with open(self.filename, "rb") as f:
         self.weights = pickle.load(f)
     else:
       self.weights = util.Counter()
+      # initialize weights
+      # self.weights["eats-food"] = -1.
+      # self.weights["closest-food"] = -1.
+      # self.weights['successorScore']= 100
+      # self.weights['distanceToFood'] = -1
+      # self.weights["#-of-ghosts-1-step-away"] = -10
+      # self.weights['onOffense'] = 10
+      # self.weights['ghost-distance'] = 10
 
   def final(self, state):
     "Called at the end of each game."
     # call the super-class final method
-    # QLearningAgent.final(self, state)
+    ApproximateQAgent.final(self, state)
 
+    print self.index, self.getWeights()
     # did we finish training?
     if self.episodesSoFar == self.numTraining and self.numTraining > 0:
       with open(self.filename) as f:
         pickle.dump(self.weights, f)
       # you might want to print your weights here for debugging
       pass
+
+  def getFeatures(self, state, action):
+    # Design Reward for carrying dots, eaten by ghost, minus by time, 
+
+    # extract the grid of food and wall locations and get the ghost locations
+    food = self.getFood(state)
+    walls = state.getWalls()
+    myPrevState = state.getAgentState(self.index)
+    myPosition = myPrevState.getPosition()
+    teammatePositions = [state.getAgentPosition(teammate)
+            for teammate in self.getTeam(state)]
+
+    capsulePos = self.getCapsules(state) 
+    isHome = state.isRed(myPosition)
+
+    # self.getMazeDistance((state.data.layout.width/2., myPosition[1]), myPosition)
+    # disFromHome = distanceCalculator.manhattanDistance((state.data.layout.width/2., myPosition[1]), myPosition)
+
+    enemy = self.getOpponents(state)
+    otherTeam = state.getBlueTeamIndices()
+
+    features = util.Counter()
+    features["bias"] = 1.0
+
+    successor = self.getSuccessor(state, action)        
+    foodList = self.getFood(successor).asList()
+    features['successorScore'] = -len(foodList)/60.
+    if len(foodList) > 0: # This should always be True,  but better safe than sorry
+      myState = successor.getAgentState(self.index)
+      myPos = myState.getPosition()
+      minDistance = min([self.getMazeDistance(myPos, food) for food in foodList])
+      features['distanceToFood'] = float(minDistance) / (walls.width * walls.height)
+      
+    # myState.isPacman, numCarrying, numReturned, scaredTimer
+    # self.start, 
+    # get other team scaredTimer
+
+      if myState.isPacman:
+        if myState.numCarrying >=2:
+          features['back-home'] = distanceCalculator.manhattanDistance(self.start,myPos) / (walls.width * walls.height * 1.)
+          # rev = Directions.REVERSE[state.getAgentState(self.index).configuration.direction]
+          # if action == rev: features['reverse'] = 1
+        else:
+          for index in otherTeam:
+            otherAgentState = state.data.agentStates[index]
+            if otherAgentState.scaredTimer > 0:
+              features['eat-capsule'] = 1.
+            if otherAgentState.isPacman: continue
+            ghostPosition = otherAgentState.getPosition()
+            if ghostPosition == None: continue
+            if distanceCalculator.manhattanDistance( ghostPosition, myState.getPosition() ) <= 0.5:
+              if otherAgentState.scaredTimer <= 0:
+                features["#-of-ghosts-1-step-away"] = int(myPos in Actions.getLegalNeighbors(ghostPosition, walls))
+                features['ghost-distance'] = float(self.getMazeDistance(ghostPosition, myPos))/ (walls.width * walls.height)
+
+      if len(capsulePos)!=0:
+        features['dis-from-capsules'] = float(min([ self.getMazeDistance(myPos, dis) for dis in capsulePos]))/ (walls.width * walls.height)
+
+      if not features["#-of-ghosts-1-step-away"] and self.getFood(state)[int(myPos[0])][int(myPos[1])]:
+        features["eats-food"] = 1.0
+
+      features.divideAll(10.0)
+
+      # need to normalize
+      # if not isHome:
+      #   features['dis-from-home'] = -1.*float(disFromHome) #/ (walls.width * walls.height)
+      # else:
+      #   features['escape-home'] = -1*1.*float(disFromHome) # / (walls.width * walls.height)
+
+
+      # if (next_x, next_y) in capsulePos:
+      #     feature['power'] = 1.0
+
+      # if (isHome):
+      #     feature['is-home'] = 1.0
+
+      # print walls.width, walls.height, myPosition, capsulePos, [ self.getMazeDistance(myPosition, dis) for dis in capsulePos], teammatePositions
+
+      # if there is no danger of ghosts then add the food feature
+      # if not features["#-of-ghosts-1-step-away"] and food[next_x][next_y]:
+
+
+      # dist = closestFood((next_x, next_y), food, walls)
+      # if dist is not None:
+      #     # make the distance a number less than one otherwise the update
+      #     # will diverge wildly
+      #     features["closest-food"] = float(dist) / (walls.width * walls.height)
+
+    return features
+
