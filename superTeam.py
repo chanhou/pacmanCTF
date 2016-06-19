@@ -370,7 +370,7 @@ class OffensiveQAgent(ApproximateQAgent):
     ApproximateQAgent.__init__(self, index, timeForComputing, **args)
     # self.featExtractor = util.lookup(extractor, globals())()
     self.filename = "offensive.train"
-    self.carryLimit = 2
+    self.carryLimit = 6
     self.carryNow = 2
     # if os.path.exists(self.filename):
     #   print 'loading weights...'
