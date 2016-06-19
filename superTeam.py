@@ -405,27 +405,39 @@ class OffensiveQAgent(ApproximateQAgent):
     ApproximateQAgent.__init__(self, index, timeForComputing, **args)
     # self.featExtractor = util.lookup(extractor, globals())()
     self.filename = "offensive.train"
-    if os.path.exists(self.filename):
-      print 'loading weights...'
-      with open(self.filename, "rb") as f:
-        self.weights = pickle.load(f)
-    else:
-      self.weights = util.Counter()
-      # initialize weights
-      # self.weights["eats-food"] = -1.
-      # self.weights["closest-food"] = -1.
-      # self.weights['successorScore']= 100
-      # self.weights['distanceToFood'] = -1
-      # self.weights["#-of-ghosts-1-step-away"] = -10
-      # self.weights['onOffense'] = 10
-      # self.weights['ghost-distance'] = 10
+    # if os.path.exists(self.filename):
+    #   print 'loading weights...'
+        # self.epsilon = 0.0    # no exploration
+        # self.alpha = 0.0      # no learning
+    #   with open(self.filename, "rb") as f:
+    #     self.weights = pickle.load(f)
+    ''' 
+    'ghost-distance': 0.05328764440886632, 
+    'successorScore': 21.234303877546264, 
+    'distanceToFood': -3.589551647328648, 
+    'bias': -61.68600087062215, 
+    'back-home': 0.1537940016251592, 
+    '#-of-ghosts-1-step-away': -0.6687040033467684
+
+    2 {'ghost-distance': 22.15883477413773, 'successorScore': 99.34586499840677, 'distanceToFood': -5.03404088226218, 'eat-capsule': 2.138792238789022, 'bias': -308.5527170812249, 'back-home': 23.760228437872442, '#-of-ghosts-1-step-away': 0.890763128482415}
+
+    '''
+    # initialize weights
+    # self.numTraining = 0
+    # self.epsilon = 0.0    # no exploration
+    # self.alpha = 0.0      # no learning
+    # self.weights["ghost-distance"] = 0.05328764440886632
+    # self.weights["bias"] = -61.68600087062215
+    # self.weights['successorScore']= 21.234303877546264
+    # self.weights['distanceToFood'] = -3.589551647328648
+    # self.weights["#-of-ghosts-1-step-away"] = -0.6687040033467684
+    # self.weights['back-home'] = 0.1537940016251592
 
   def final(self, state):
     "Called at the end of each game."
     # call the super-class final method
     ApproximateQAgent.final(self, state)
     print self.index, self.getWeights()
-
 
   def getFeatures(self, state, action):
     # Design Reward for carrying dots, eaten by ghost, minus by time, 
@@ -467,26 +479,24 @@ class OffensiveQAgent(ApproximateQAgent):
         dis = []
         for index in otherTeam:
           otherAgentState = state.data.agentStates[index]
-          if otherAgentState.scaredTimer > 0:
-            # features['eat-capsule'] = 1.
-            continue
+          # if otherAgentState.scaredTimer > 0:
+          #   continue
           if otherAgentState.isPacman: continue
           ghostPosition = otherAgentState.getPosition()
           if ghostPosition == None: continue
           if otherAgentState.scaredTimer <= 0:
             features["#-of-ghosts-1-step-away"] = int(myPos in Actions.getLegalNeighbors(ghostPosition, walls))
-            dis += [float(self.getMazeDistance(ghostPosition, myPos))/ (walls.width * walls.height)]
+            dis += [float(self.getMazeDistance(ghostPosition, myPos))]
             # if distanceCalculator.manhattanDistance( ghostPosition, myState.getPosition() ) <= 0.5:
         if len(dis)!=0: features['ghost-distance'] = -min(dis)
 
       if myPrevState.numCarrying >=2:
-        features['back-home'] = -1.*self.getMazeDistance(self.start,myPos) / (walls.width * walls.height * 1.)
-        features['distanceToFood'] = 0
-        features['successorScore'] = 0
-      if (not features['ghost-distance'] and features['ghost-distance'] > 2  and features['distanceToFood']<=2):
+        features['back-home'] = -1.*self.getMazeDistance(self.start,myPos) / walls.width * 1.
+        features['distanceToFood'] = 0.
+        features['successorScore'] = 0.
+
+      if (features['ghost-distance'] and features['ghost-distance'] > 2  and features['distanceToFood']<=2):
         features["eats-food"] = 1.0
-          # rev = Directions.REVERSE[state.getAgentState(self.index).configuration.direction]
-          # if action == rev: features['reverse'] = 1
 
       # if len(capsulePos)!=0:
       #   features['dis-from-capsules'] = float(min([ self.getMazeDistance(myPos, dis) for dis in capsulePos]))/ (walls.width * walls.height)
