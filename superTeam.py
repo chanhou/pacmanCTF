@@ -374,7 +374,7 @@ class ApproximateQAgent(QLearningAgent):
     # did we finish training?
     if self.episodesSoFar == self.numTraining:
       # you might want to print your weights here for debugging
-      with open(self.filename+str(self.index), 'wb') as f:
+      with open(self.filename, 'wb') as f:
         pickle.dump(self.weights, f)
       pass
 
@@ -418,20 +418,25 @@ class OffensiveQAgent(ApproximateQAgent):
     'bias': -61.68600087062215, 
     'back-home': 0.1537940016251592, 
     '#-of-ghosts-1-step-away': -0.6687040033467684
-
-    2 {'ghost-distance': 22.15883477413773, 'successorScore': 99.34586499840677, 'distanceToFood': -5.03404088226218, 'eat-capsule': 2.138792238789022, 'bias': -308.5527170812249, 'back-home': 23.760228437872442, '#-of-ghosts-1-step-away': 0.890763128482415}
+    
+    Best result
+    2 {'ghost-distance': 3.763708484777899, 'successorScore': 26.91631145259291, 'distanceToFood': -3.552103735787748, 'bias': -61.42192130600966, 'back-home': 0.05505876072946386, '#-of-ghosts-1-step-away': -0.8667431307889246, 'eats-food': 0.0}
 
     '''
     # initialize weights
-    # self.numTraining = 0
-    # self.epsilon = 0.0    # no exploration
-    # self.alpha = 0.0      # no learning
+    self.numTraining = 0
+    self.epsilon = 0.0    # no exploration
+    self.alpha = 0.0      # no learning
+    # the best!
+    self.weights = util.Counter({'ghost-distance': 3.763708484777899, 'successorScore': 26.91631145259291, 'distanceToFood': -3.552103735787748, 'bias': -61.42192130600966, 'back-home': 0.05505876072946386, '#-of-ghosts-1-step-away': -0.8667431307889246, 'eats-food': 0.0})
+
+    # # second best !
     # self.weights["ghost-distance"] = 0.05328764440886632
     # self.weights["bias"] = -61.68600087062215
     # self.weights['successorScore']= 21.234303877546264
     # self.weights['distanceToFood'] = -3.589551647328648
     # self.weights["#-of-ghosts-1-step-away"] = -0.6687040033467684
-    # self.weights['back-home'] = 0.1537940016251592
+    # self.weights['back-home'] = 0.1537940016251592    
 
   def final(self, state):
     "Called at the end of each game."
@@ -475,7 +480,7 @@ class OffensiveQAgent(ApproximateQAgent):
     # self.start, 
     # get other team scaredTimer
 
-      if myState.isPacman:
+      if myPrevState.isPacman or myState.isPacman:
         dis = []
         for index in otherTeam:
           otherAgentState = state.data.agentStates[index]
@@ -486,17 +491,26 @@ class OffensiveQAgent(ApproximateQAgent):
           if ghostPosition == None: continue
           if otherAgentState.scaredTimer <= 0:
             features["#-of-ghosts-1-step-away"] = int(myPos in Actions.getLegalNeighbors(ghostPosition, walls))
-            dis += [float(self.getMazeDistance(ghostPosition, myPos))]
+            dis += [float(self.getMazeDistance(ghostPosition, myPos))/6.]
             # if distanceCalculator.manhattanDistance( ghostPosition, myState.getPosition() ) <= 0.5:
         if len(dis)!=0: features['ghost-distance'] = -min(dis)
 
       if myPrevState.numCarrying >=2:
-        features['back-home'] = -1.*self.getMazeDistance(self.start,myPos) / walls.width * 1.
+        features['back-home'] = -1.*self.getMazeDistance(self.start,myPos) / (walls.width * 10.)
+        # features['run-home'] = -1.
         features['distanceToFood'] = 0.
         features['successorScore'] = 0.
-
-      if (features['ghost-distance'] and features['ghost-distance'] > 2  and features['distanceToFood']<=2):
-        features["eats-food"] = 1.0
+      else:
+        if not features['ghost-distance']:
+            features["eats-food"] = 0.0
+        else:
+          if features['ghost-distance'] < -2 and features['distanceToFood']<=1:
+            features["eats-food"] = 0.0
+          else:
+            features['back-home'] = -1.*self.getMazeDistance(self.start,myPos) / walls.width * 1.
+            # features['run-home'] = -1.
+            features['distanceToFood'] = 0.
+            features['successorScore'] = 0.
 
       # if len(capsulePos)!=0:
       #   features['dis-from-capsules'] = float(min([ self.getMazeDistance(myPos, dis) for dis in capsulePos]))/ (walls.width * walls.height)
