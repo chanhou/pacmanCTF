@@ -405,6 +405,8 @@ class OffensiveQAgent(ApproximateQAgent):
     ApproximateQAgent.__init__(self, index, timeForComputing, **args)
     # self.featExtractor = util.lookup(extractor, globals())()
     self.filename = "offensive.train"
+    self.carryLimit = 6
+    self.carryNow = 2
     # if os.path.exists(self.filename):
     #   print 'loading weights...'
         # self.epsilon = 0.0    # no exploration
@@ -455,17 +457,17 @@ class OffensiveQAgent(ApproximateQAgent):
     teammatePositions = [state.getAgentPosition(teammate)
             for teammate in self.getTeam(state)]
 
-    capsulePos = self.getCapsules(state) 
-    isHome = state.isRed(myPosition)
-
-    # self.getMazeDistance((state.data.layout.width/2., myPosition[1]), myPosition)
-    # disFromHome = distanceCalculator.manhattanDistance((state.data.layout.width/2., myPosition[1]), myPosition)
-
-    enemy = self.getOpponents(state)
+    # capsulePos = self.getCapsules(state) 
+    # isHome = state.isRed(myPosition)
+    # enemy = self.getOpponents(state)
     otherTeam = state.getBlueTeamIndices()
 
     features = util.Counter()
     features["bias"] = 1.0
+
+    # dynamically change when need to return to got the score
+    if myPrevState.numCarrying==0:
+      self.carryNow = self.carryLimit
 
     successor = self.getSuccessor(state, action)
     foodList = self.getFood(successor).asList()
@@ -476,75 +478,46 @@ class OffensiveQAgent(ApproximateQAgent):
       minDistance = min([self.getMazeDistance(myPos, food) for food in foodList])
       features['distanceToFood'] = float(minDistance) / (walls.width * walls.height)
       
-    # myState.isPacman, numCarrying, numReturned, scaredTimer
-    # self.start, 
-    # get other team scaredTimer
-
-      if myPrevState.isPacman or myState.isPacman:
+      checkall = []
+      if myPrevState.isPacman: # uncomment it for optimal action, use it for more interesting result
+        # check for the distance between ghost
+        # uncomment from {
         dis = []
         for index in otherTeam:
           otherAgentState = state.data.agentStates[index]
-          # if otherAgentState.scaredTimer > 0:
-          #   continue
+          if otherAgentState.scaredTimer > 0: # power capsule 
+            checkall += [1]
           if otherAgentState.isPacman: continue
           ghostPosition = otherAgentState.getPosition()
           if ghostPosition == None: continue
           if otherAgentState.scaredTimer <= 0:
             features["#-of-ghosts-1-step-away"] = int(myPos in Actions.getLegalNeighbors(ghostPosition, walls))
             dis += [float(self.getMazeDistance(ghostPosition, myPos))/6.]
-            # if distanceCalculator.manhattanDistance( ghostPosition, myState.getPosition() ) <= 0.5:
         if len(dis)!=0: features['ghost-distance'] = -min(dis)
+        # dynamically change when need to return to got the score
+        # to here}
+        
+      if features["#-of-ghosts-1-step-away"] and myPrevState.numCarrying!=0: 
+          self.carryNow = myPrevState.numCarrying
 
-      if myPrevState.numCarrying >=2:
-        features['back-home'] = -1.*self.getMazeDistance(self.start,myPos) / (walls.width * 10.)
-        # features['run-home'] = -1.
-        features['distanceToFood'] = 0.
-        features['successorScore'] = 0.
+      if len(checkall)==len(otherTeam): # power of capsule
+        # bug of this function
+        features["#-of-ghosts-1-step-away"] = 0.
+        features['ghost-distance'] = 0.
+        # features['distanceToFood'] = -features['distanceToFood']
       else:
-        if not features['ghost-distance']:
-            features["eats-food"] = 0.0
+        if myPrevState.numCarrying >= self.carryNow:
+          features['back-home'] = -1.*self.getMazeDistance(self.start,myPos) / (walls.width * 10.)
+          features['distanceToFood'] = 0.
+          features['successorScore'] = 0.
         else:
-          if features['ghost-distance'] < -2 and features['distanceToFood']<=1:
-            features["eats-food"] = 0.0
-          else:
-            features['back-home'] = -1.*self.getMazeDistance(self.start,myPos) / walls.width * 1.
-            # features['run-home'] = -1.
-            features['distanceToFood'] = 0.
-            features['successorScore'] = 0.
-
-      # if len(capsulePos)!=0:
-      #   features['dis-from-capsules'] = float(min([ self.getMazeDistance(myPos, dis) for dis in capsulePos]))/ (walls.width * walls.height)
-
-      # if not features["#-of-ghosts-1-step-away"] and self.getFood(state)[int(myPos[0])][int(myPos[1])]:
-
-      # if not features["#-of-ghosts-1-step-away"] and myPrevState.numCarrying <2 and self.getFood(state)[int(myPos[0])][int(myPos[1])]:
-      #   features["eats-food"] = 1.0
+          if features['ghost-distance']:
+            if not (features['ghost-distance'] < -2 and features['distanceToFood']<=1):
+              features['back-home'] = -1.*self.getMazeDistance(self.start,myPos) / walls.width * 1.
+              # features['run-home'] = -1.
+              features['distanceToFood'] = 0.
+              features['successorScore'] = 0.
 
       features.divideAll(10.0)
-
-      # need to normalize
-      # if not isHome:
-      #   features['dis-from-home'] = -1.*float(disFromHome) #/ (walls.width * walls.height)
-      # else:
-      #   features['escape-home'] = -1*1.*float(disFromHome) # / (walls.width * walls.height)
-
-
-      # if (next_x, next_y) in capsulePos:
-      #     feature['power'] = 1.0
-
-      # if (isHome):
-      #     feature['is-home'] = 1.0
-
-      # print walls.width, walls.height, myPosition, capsulePos, [ self.getMazeDistance(myPosition, dis) for dis in capsulePos], teammatePositions
-
-      # if there is no danger of ghosts then add the food feature
-      # if not features["#-of-ghosts-1-step-away"] and food[next_x][next_y]:
-
-
-      # dist = closestFood((next_x, next_y), food, walls)
-      # if dist is not None:
-      #     # make the distance a number less than one otherwise the update
-      #     # will diverge wildly
-      #     features["closest-food"] = float(dist) / (walls.width * walls.height)
 
     return features
