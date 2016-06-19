@@ -112,12 +112,18 @@ class QLearningAgent(CaptureAgent):
       The simulation should somehow ensure this is called
     """
     if not self.lastState is None:
-      reward = (state.getScore() - self.lastState.getScore())*2
+      reward = (state.getScore() - self.lastState.getScore())*100
       
       # pseudo reward
       reward -= 1. # one time step cost
       agentState = state.data.agentStates[self.index]
+      preagentState = self.lastState.data.agentStates[self.index]
       otherTeam = state.getBlueTeamIndices()
+      if agentState.numCarrying > preagentState.numCarrying:
+        reward += 20
+      if agentState.numReturned > preagentState.numReturned:
+        reward += 100
+
       if agentState.isPacman:
         for index in otherTeam:
           otherAgentState = state.data.agentStates[index]
@@ -127,7 +133,7 @@ class QLearningAgent(CaptureAgent):
           if distanceCalculator.manhattanDistance( ghostPosition, agentState.getPosition() ) <= 0.5:
             # award points to the other team for killing Pacmen
             if otherAgentState.scaredTimer <= 0:
-              reward -= 20.
+              reward -= 10.
             else:
               reward += 1.
       else: # pacman is ghost
@@ -368,6 +374,8 @@ class ApproximateQAgent(QLearningAgent):
     # did we finish training?
     if self.episodesSoFar == self.numTraining:
       # you might want to print your weights here for debugging
+      with open(self.filename+str(self.index), 'wb') as f:
+        pickle.dump(self.weights, f)
       pass
 
   def getSuccessor(self, gameState, action):
@@ -416,14 +424,8 @@ class OffensiveQAgent(ApproximateQAgent):
     "Called at the end of each game."
     # call the super-class final method
     ApproximateQAgent.final(self, state)
-
     print self.index, self.getWeights()
-    # did we finish training?
-    if self.episodesSoFar == self.numTraining and self.numTraining > 0:
-      with open(self.filename) as f:
-        pickle.dump(self.weights, f)
-      # you might want to print your weights here for debugging
-      pass
+
 
   def getFeatures(self, state, action):
     # Design Reward for carrying dots, eaten by ghost, minus by time, 
@@ -448,7 +450,7 @@ class OffensiveQAgent(ApproximateQAgent):
     features = util.Counter()
     features["bias"] = 1.0
 
-    successor = self.getSuccessor(state, action)        
+    successor = self.getSuccessor(state, action)
     foodList = self.getFood(successor).asList()
     features['successorScore'] = -len(foodList)/60.
     if len(foodList) > 0: # This should always be True,  but better safe than sorry
@@ -462,28 +464,37 @@ class OffensiveQAgent(ApproximateQAgent):
     # get other team scaredTimer
 
       if myState.isPacman:
-        if myState.numCarrying >=2:
-          features['back-home'] = distanceCalculator.manhattanDistance(self.start,myPos) / (walls.width * walls.height * 1.)
+        dis = []
+        for index in otherTeam:
+          otherAgentState = state.data.agentStates[index]
+          if otherAgentState.scaredTimer > 0:
+            # features['eat-capsule'] = 1.
+            continue
+          if otherAgentState.isPacman: continue
+          ghostPosition = otherAgentState.getPosition()
+          if ghostPosition == None: continue
+          if otherAgentState.scaredTimer <= 0:
+            features["#-of-ghosts-1-step-away"] = int(myPos in Actions.getLegalNeighbors(ghostPosition, walls))
+            dis += [float(self.getMazeDistance(ghostPosition, myPos))/ (walls.width * walls.height)]
+            # if distanceCalculator.manhattanDistance( ghostPosition, myState.getPosition() ) <= 0.5:
+        if len(dis)!=0: features['ghost-distance'] = -min(dis)
+
+      if myPrevState.numCarrying >=2:
+        features['back-home'] = -1.*self.getMazeDistance(self.start,myPos) / (walls.width * walls.height * 1.)
+        features['distanceToFood'] = 0
+        features['successorScore'] = 0
+      if (not features['ghost-distance'] and features['ghost-distance'] > 2  and features['distanceToFood']<=2):
+        features["eats-food"] = 1.0
           # rev = Directions.REVERSE[state.getAgentState(self.index).configuration.direction]
           # if action == rev: features['reverse'] = 1
-        else:
-          for index in otherTeam:
-            otherAgentState = state.data.agentStates[index]
-            if otherAgentState.scaredTimer > 0:
-              features['eat-capsule'] = 1.
-            if otherAgentState.isPacman: continue
-            ghostPosition = otherAgentState.getPosition()
-            if ghostPosition == None: continue
-            if distanceCalculator.manhattanDistance( ghostPosition, myState.getPosition() ) <= 0.5:
-              if otherAgentState.scaredTimer <= 0:
-                features["#-of-ghosts-1-step-away"] = int(myPos in Actions.getLegalNeighbors(ghostPosition, walls))
-                features['ghost-distance'] = float(self.getMazeDistance(ghostPosition, myPos))/ (walls.width * walls.height)
 
-      if len(capsulePos)!=0:
-        features['dis-from-capsules'] = float(min([ self.getMazeDistance(myPos, dis) for dis in capsulePos]))/ (walls.width * walls.height)
+      # if len(capsulePos)!=0:
+      #   features['dis-from-capsules'] = float(min([ self.getMazeDistance(myPos, dis) for dis in capsulePos]))/ (walls.width * walls.height)
 
-      if not features["#-of-ghosts-1-step-away"] and self.getFood(state)[int(myPos[0])][int(myPos[1])]:
-        features["eats-food"] = 1.0
+      # if not features["#-of-ghosts-1-step-away"] and self.getFood(state)[int(myPos[0])][int(myPos[1])]:
+
+      # if not features["#-of-ghosts-1-step-away"] and myPrevState.numCarrying <2 and self.getFood(state)[int(myPos[0])][int(myPos[1])]:
+      #   features["eats-food"] = 1.0
 
       features.divideAll(10.0)
 
@@ -513,4 +524,3 @@ class OffensiveQAgent(ApproximateQAgent):
       #     features["closest-food"] = float(dist) / (walls.width * walls.height)
 
     return features
-
