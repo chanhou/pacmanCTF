@@ -494,9 +494,9 @@ class OffensiveQAgent(ApproximateQAgent):
             features["#-of-ghosts-1-step-away"] = int(myPos in Actions.getLegalNeighbors(ghostPosition, walls))
             dis += [float(self.getMazeDistance(ghostPosition, myPos))/6.]
         if len(dis)!=0: features['ghost-distance'] = -min(dis)
-        # dynamically change when need to return to got the score
         # to here}
-        
+
+      # dynamically change if we meet the ghost then return to got the score
       if features["#-of-ghosts-1-step-away"] and myPrevState.numCarrying!=0: 
           self.carryNow = myPrevState.numCarrying
 
