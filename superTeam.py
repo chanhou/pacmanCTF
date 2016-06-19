@@ -112,42 +112,7 @@ class QLearningAgent(CaptureAgent):
       The simulation should somehow ensure this is called
     """
     if not self.lastState is None:
-      reward = (state.getScore() - self.lastState.getScore())*100
-      
-      # pseudo reward
-      reward -= 1. # one time step cost
-      agentState = state.data.agentStates[self.index]
-      preagentState = self.lastState.data.agentStates[self.index]
-      otherTeam = state.getBlueTeamIndices()
-      if agentState.numCarrying > preagentState.numCarrying:
-        reward += 20
-      if agentState.numReturned > preagentState.numReturned:
-        reward += 100
-
-      if agentState.isPacman:
-        for index in otherTeam:
-          otherAgentState = state.data.agentStates[index]
-          if otherAgentState.isPacman: continue
-          ghostPosition = otherAgentState.getPosition()
-          if ghostPosition == None: continue
-          if distanceCalculator.manhattanDistance( ghostPosition, agentState.getPosition() ) <= 0.5:
-            # award points to the other team for killing Pacmen
-            if otherAgentState.scaredTimer <= 0:
-              reward -= 10.
-            else:
-              reward += 1.
-      else: # pacman is ghost
-        for index in otherTeam:
-          otherAgentState = state.data.agentStates[index]
-          if not otherAgentState.isPacman: continue
-          pacPos = otherAgentState.getPosition()
-          if pacPos == None: continue
-          if distanceCalculator.manhattanDistance( pacPos, agentState.getPosition() ) <= 0.5:
-            #award points to the other team for killing Pacmen
-            if agentState.scaredTimer <= 0:
-              reward += 10.
-            else:
-              reward -= 10
+      reward = (state.getScore() - self.lastState.getScore())      
       self.observeTransition(self.lastState, self.lastAction, state, reward)
 
     return CaptureAgent.observationFunction(self, state)
@@ -405,7 +370,7 @@ class OffensiveQAgent(ApproximateQAgent):
     ApproximateQAgent.__init__(self, index, timeForComputing, **args)
     # self.featExtractor = util.lookup(extractor, globals())()
     self.filename = "offensive.train"
-    self.carryLimit = 6
+    self.carryLimit = 2
     self.carryNow = 2
     # if os.path.exists(self.filename):
     #   print 'loading weights...'
@@ -413,38 +378,41 @@ class OffensiveQAgent(ApproximateQAgent):
         # self.alpha = 0.0      # no learning
     #   with open(self.filename, "rb") as f:
     #     self.weights = pickle.load(f)
-    ''' 
-    'ghost-distance': 0.05328764440886632, 
-    'successorScore': 21.234303877546264, 
-    'distanceToFood': -3.589551647328648, 
-    'bias': -61.68600087062215, 
-    'back-home': 0.1537940016251592, 
-    '#-of-ghosts-1-step-away': -0.6687040033467684
-    
-    Best result
-    2 {'ghost-distance': 3.763708484777899, 'successorScore': 26.91631145259291, 'distanceToFood': -3.552103735787748, 'bias': -61.42192130600966, 'back-home': 0.05505876072946386, '#-of-ghosts-1-step-away': -0.8667431307889246, 'eats-food': 0.0}
 
-    '''
-    # initialize weights
-    self.numTraining = 0
-    self.epsilon = 0.0    # no exploration
-    self.alpha = 0.0      # no learning
-    # the best!
-    self.weights = util.Counter({'ghost-distance': 3.763708484777899, 'successorScore': 26.91631145259291, 'distanceToFood': -3.552103735787748, 'bias': -61.42192130600966, 'back-home': 0.05505876072946386, '#-of-ghosts-1-step-away': -0.8667431307889246, 'eats-food': 0.0})
-
-    # # second best !
-    # self.weights["ghost-distance"] = 0.05328764440886632
-    # self.weights["bias"] = -61.68600087062215
-    # self.weights['successorScore']= 21.234303877546264
-    # self.weights['distanceToFood'] = -3.589551647328648
-    # self.weights["#-of-ghosts-1-step-away"] = -0.6687040033467684
-    # self.weights['back-home'] = 0.1537940016251592    
+    # # initialize weights
+    # self.numTraining = 0
+    # self.epsilon = 0.0    # no exploration
+    # self.alpha = 0.0      # no learning
+    # self.weights = util.Counter({
+    #   'ghost-distance': 3.763708484777899, 
+    #   'successorScore': 26.91631145259291, 
+    #   'distanceToFood': -3.552103735787748, 
+    #   'bias': -61.42192130600966, 
+    #   'back-home': 0.05505876072946386, 
+    #   '#-of-ghosts-1-step-away': -0.8667431307889246, 
+    #   'eats-food': 0.0})
 
   def final(self, state):
     "Called at the end of each game."
     # call the super-class final method
     ApproximateQAgent.final(self, state)
     print self.index, self.getWeights()
+
+  def observationFunction(self, state):
+    """
+      This is where we ended up after our last action.
+      The simulation should somehow ensure this is called
+    """
+    if not self.lastState is None:
+      reward = (state.getScore() - self.lastState.getScore())
+      
+      # pseudo reward
+      reward -= 1. # one time step cost
+
+      self.observeTransition(self.lastState, self.lastAction, state, reward)
+
+    return CaptureAgent.observationFunction(self, state)
+
 
   def getFeatures(self, state, action):
     # Design Reward for carrying dots, eaten by ghost, minus by time, 
@@ -454,8 +422,7 @@ class OffensiveQAgent(ApproximateQAgent):
     walls = state.getWalls()
     myPrevState = state.getAgentState(self.index)
     myPosition = myPrevState.getPosition()
-    teammatePositions = [state.getAgentPosition(teammate)
-            for teammate in self.getTeam(state)]
+    # teammatePositions = [state.getAgentPosition(teammate)for teammate in self.getTeam(state)]
 
     # capsulePos = self.getCapsules(state) 
     # isHome = state.isRed(myPosition)
@@ -476,48 +443,51 @@ class OffensiveQAgent(ApproximateQAgent):
       myState = successor.getAgentState(self.index)
       myPos = myState.getPosition()
       minDistance = min([self.getMazeDistance(myPos, food) for food in foodList])
-      features['distanceToFood'] = float(minDistance) / (walls.width * walls.height)
-      
+      features['distanceToFood'] = float(minDistance)
+
       checkall = []
-      if myPrevState.isPacman: # uncomment it for optimal action, use it for more interesting result
+      # if myPrevState.isPacman: # uncomment it for optimal action, use it for more interesting result
         # check for the distance between ghost
-        # uncomment from {
-        dis = []
-        for index in otherTeam:
-          otherAgentState = state.data.agentStates[index]
-          if otherAgentState.scaredTimer > 0: # power capsule 
-            checkall += [1]
-          if otherAgentState.isPacman: continue
-          ghostPosition = otherAgentState.getPosition()
-          if ghostPosition == None: continue
-          if otherAgentState.scaredTimer <= 0:
-            features["#-of-ghosts-1-step-away"] = int(myPos in Actions.getLegalNeighbors(ghostPosition, walls))
-            dis += [float(self.getMazeDistance(ghostPosition, myPos))/6.]
-        if len(dis)!=0: features['ghost-distance'] = -min(dis)
+        # unindent from {
+      dis = []
+      for index in otherTeam:
+        otherAgentState = state.data.agentStates[index]
+        if otherAgentState.scaredTimer > 0: # power capsule 
+          checkall += [1]
+        if otherAgentState.isPacman: continue
+        ghostPosition = otherAgentState.getPosition()
+        if ghostPosition == None: continue
+        if otherAgentState.scaredTimer <= 0:
+          features["#-of-ghosts-1-step-away"] = int(myPos in Actions.getLegalNeighbors(ghostPosition, walls))
+          dis += [float(self.getMazeDistance(ghostPosition, myPos))]
+      if len(dis)!=0: features['ghost-distance'] = min(dis)
         # to here}
 
       # dynamically change if we meet the ghost then return to got the score
       if features["#-of-ghosts-1-step-away"] and myPrevState.numCarrying!=0: 
           self.carryNow = myPrevState.numCarrying
 
-      if len(checkall)==len(otherTeam): # power of capsule
-        # bug of this function
-        features["#-of-ghosts-1-step-away"] = 0.
-        features['ghost-distance'] = 0.
-        # features['distanceToFood'] = -features['distanceToFood']
-      else:
+      # if len(checkall)==len(otherTeam): # power of capsule
+      #   # bug of this function
+      #   features["#-of-ghosts-1-step-away"] = 0
+      #   features['ghost-distance'] = 0
+      #   # self.carryNow = self.carryLimit
+      #   # features['distanceToFood'] = -features['distanceToFood']
+      # else:
+      if len(checkall)!=len(otherTeam):
         if myPrevState.numCarrying >= self.carryNow:
           features['back-home'] = -1.*self.getMazeDistance(self.start,myPos) / (walls.width * 10.)
           features['distanceToFood'] = 0.
           features['successorScore'] = 0.
         else:
           if features['ghost-distance']:
-            if not (features['ghost-distance'] < -2 and features['distanceToFood']<=1):
-              features['back-home'] = -1.*self.getMazeDistance(self.start,myPos) / walls.width * 1.
-              # features['run-home'] = -1.
+            if not (features['ghost-distance'] > 2 ):
+              features['back-home'] = -1.*self.getMazeDistance(self.start,myPos) / walls.width * 10.
               features['distanceToFood'] = 0.
               features['successorScore'] = 0.
 
+      features['ghost-distance'] /= -6.
+      features['distanceToFood'] /= 1. *(walls.width * walls.height)
       features.divideAll(10.0)
 
     return features
