@@ -858,7 +858,7 @@ def readCommand( argv ):
   numAgents = options.numAgents
   if options.numTraining > 0:
     redArgs['numTraining'] = options.numTraining
-    blueArgs['numTraining'] = options.numTraining
+    # blueArgs['numTraining'] = options.numTraining
   nokeyboard = options.textgraphics or options.quiet or options.numTraining > 0
   print '\nRed team %s with %s:' % (options.red, redArgs)
   redAgents = loadAgents(True, options.red, nokeyboard, redArgs, numAgents)
