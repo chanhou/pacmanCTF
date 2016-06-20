@@ -371,6 +371,7 @@ class OffensiveQAgent(ApproximateQAgent):
     # self.featExtractor = util.lookup(extractor, globals())()
     self.filename = "offensive.train"
     self.carryLimit = 10
+    self.PowerTimer = 8
 
     # # initialize weights
     if self.numTraining == 0:
@@ -447,12 +448,12 @@ class OffensiveQAgent(ApproximateQAgent):
       dis = []
       for index in otherTeam:
         otherAgentState = state.data.agentStates[index]
-        if otherAgentState.scaredTimer > 10: # power capsule 
+        if otherAgentState.scaredTimer > self.PowerTimer: # power capsule 
           checkall += 1
         if otherAgentState.isPacman: continue
         ghostPosition = otherAgentState.getPosition()
         if ghostPosition == None: continue
-        if otherAgentState.scaredTimer <= 0:
+        if otherAgentState.scaredTimer <= self.PowerTimer:
           features["#-of-ghosts-1-step-away"] = int(myPos in Actions.getLegalNeighbors(ghostPosition, walls))
           dis += [float(self.getMazeDistance(ghostPosition, myPos))]
       if len(dis)!=0: features['ghost-distance'] = min(dis)
