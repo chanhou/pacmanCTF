@@ -435,28 +435,24 @@ class OffensiveQAgent(ApproximateQAgent):
     features['successorScore'] = -len(foodList)/60.
     myState = successor.getAgentState(self.index)
     myPos = myState.getPosition()
-    if len(foodList) > 0: # This should always be True,  but better safe than sorry
-      minDistance = min([self.getMazeDistance(myPos, food) for food in foodList])
-    else:
-      minDistance = 0
 
-    features['distanceToFood'] = float(minDistance)
     checkall = 0
-    if myPrevState.isPacman: # uncomment it for optimal action, use it for more interesting randomness result
+    # if myPrevState.isPacman: # uncomment it for optimal action, use it for more interesting randomness result
       # check for the distance between ghost
       # unindent from {
-      dis = []
-      for index in otherTeam:
-        otherAgentState = state.data.agentStates[index]
-        if otherAgentState.scaredTimer > self.PowerTimer: # power capsule 
-          checkall += 1
-        if otherAgentState.isPacman: continue
-        ghostPosition = otherAgentState.getPosition()
-        if ghostPosition == None: continue
-        if otherAgentState.scaredTimer <= self.PowerTimer:
-          features["#-of-ghosts-1-step-away"] = int(myPos in Actions.getLegalNeighbors(ghostPosition, walls))
-          dis += [float(self.getMazeDistance(ghostPosition, myPos))]
-      if len(dis)!=0: features['ghost-distance'] = min(dis)
+    dis = []
+    for index in otherTeam:
+      otherAgentState = state.data.agentStates[index]
+      if otherAgentState.scaredTimer > self.PowerTimer: # power capsule 
+        checkall += 1
+      if otherAgentState.isPacman: continue
+      ghostPosition = otherAgentState.getPosition()
+      if ghostPosition == None: continue
+      if otherAgentState.scaredTimer <= self.PowerTimer:
+        features["#-of-ghosts-1-step-away"] = int(myPos in Actions.getLegalNeighbors(ghostPosition, walls))
+        dis += [float(self.getMazeDistance(ghostPosition, myPos))]
+    if len(dis)!=0: features['ghost-distance'] = min(dis)
+    # if len(dis)!=0: print features['ghost-distance'], dis
       # to here}
 
     # dynamically change when need to return to got the score
@@ -465,6 +461,14 @@ class OffensiveQAgent(ApproximateQAgent):
     # dynamically change if we meet the ghost then return to got the score
     if (features["#-of-ghosts-1-step-away"] and myPrevState.numCarrying!=0) or (state.data.timeleft/1./state.getNumAgents()/2. < walls.width):
         self.carryLimit = myPrevState.numCarrying if myPrevState.numCarrying != 0 else 2
+
+    if len(foodList) > 0: # This should always be True,  but better safe than sorry
+      dis = sorted([self.getMazeDistance(myPos, food) for food in foodList])
+      # minDistance = dis[0] if not features['ghost-distance'] else dis[random.randint(1,len(foodList)-1)]
+      minDistance = dis[0]
+    else:
+      minDistance = 0
+    features['distanceToFood'] = float(minDistance)
 
     # if len(checkall)==len(otherTeam): # power of capsule
     #   # bug of this function
@@ -480,7 +484,9 @@ class OffensiveQAgent(ApproximateQAgent):
       if myPrevState.numCarrying >= self.carryLimit:
         back_home = True
       else:
-        if features['ghost-distance'] and (features['ghost-distance'] <= 2 ):
+        if features['ghost-distance'] and (features['ghost-distance'] <= 3) and myPrevState.isPacman:
+          back_home = True
+        elif features['ghost-distance'] and not myPrevState.isPacman:
           back_home = True
 
     if len(foodList)==0:
@@ -491,7 +497,12 @@ class OffensiveQAgent(ApproximateQAgent):
       features['distanceToFood'] = 0.
       features['successorScore'] = 0.
 
-    features['ghost-distance'] /= -6.
+    # if action == Directions.STOP: features['stop'] = 1
+    # rev = Directions.REVERSE[state.getAgentState(self.index).configuration.direction]
+    # if action == rev: features['reverse'] = 1
+
+    # features['ghost-distance'] /= -6.
+    features['ghost-distance'] = 0
     features['distanceToFood'] /= 1. *(walls.width * walls.height)
     features.divideAll(10.0)
 
