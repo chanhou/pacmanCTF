@@ -29,12 +29,13 @@ import os.path
 from game import Directions
 import game
 from util import nearestPoint
+import numpy as np
 
 #################
 # Team creation #
 #################
 def createTeam(index, isRed,
-               first = 'OffensiveQAgent', second = 'OffensiveQAgent', third = 'OffensiveQAgent', **args):
+               first = 'OffensiveQAgent', second = 'DeffensiveQAgent', third = 'OffensiveQAgent', **args):
   """
   This function should return a list of two agents that will form the
   team, initialized using firstIndex and secondIndex as their agent
@@ -371,7 +372,7 @@ class OffensiveQAgent(ApproximateQAgent):
     # self.featExtractor = util.lookup(extractor, globals())()
     self.filename = "offensive.train"
     self.carryLimit = 10
-    self.PowerTimer = 8
+    self.PowerTimer = 3
 
     # # initialize weights
     if self.numTraining == 0:
@@ -389,6 +390,7 @@ class OffensiveQAgent(ApproximateQAgent):
         'back-home': 0.05505876072946386, 
         '#-of-ghosts-1-step-away': -0.8667431307889246, 
         'eats-food': 0.0})
+      # self.weights = util.Counter({'closest-food': -5.054839131498016, 'successorScore': 129.42310359521304, '#-of-ghosts-1-step-away': -2.271172287391008, 'bias': -147.63840814884603, 'escape': 1.4102253271888339, 'eats-food': -3.6297797537243683})
 
   def final(self, state):
     "Called at the end of each game."
@@ -420,9 +422,10 @@ class OffensiveQAgent(ApproximateQAgent):
     walls = state.getWalls()
     myPrevState = state.getAgentState(self.index)
     myPrePos = myPrevState.getPosition()
-    # teammatePositions = [state.getAgentPosition(teammate)for teammate in self.getTeam(state)]
+    teammatePositions = [state.getAgentPosition(teammate)for teammate in self.getTeam(state)]
 
     # capsulePos = self.getCapsules(state) 
+    capsulePos = state.getRedCapsules() if state.isOnRedTeam(self.index) else state.getBlueCapsules()
     # isHome = state.isRed(myPrePos)
     # enemy = self.getOpponents(state)
     otherTeam = state.getBlueTeamIndices() if state.isOnRedTeam(self.index) else state.getRedTeamIndices()
@@ -460,6 +463,7 @@ class OffensiveQAgent(ApproximateQAgent):
       self.carryLimit = len(foodList)
     # dynamically change if we meet the ghost then return to got the score
     if (features["#-of-ghosts-1-step-away"] and myPrevState.numCarrying!=0) or (state.data.timeleft/1./state.getNumAgents()/2. < walls.width):
+    # if (state.data.timeleft/1./state.getNumAgents()/2. < walls.width):
         self.carryLimit = myPrevState.numCarrying if myPrevState.numCarrying != 0 else 2
 
     if len(foodList) > 0: # This should always be True,  but better safe than sorry
@@ -493,9 +497,11 @@ class OffensiveQAgent(ApproximateQAgent):
       back_home = True
 
     if back_home:
-      features['back-home'] = -1.*self.getMazeDistance(self.start,myPos) / (walls.width * 10.)
+      # features['back-home'] =  - 1.*self.getMazeDistance(capsulePos[0], myPos) / (walls.width * 5.)
+      features['back-home'] =  - 1.*self.getMazeDistance(self.start, myPos) / (walls.width * 5.)
       features['distanceToFood'] = 0.
-      features['successorScore'] = 0.
+      # features['successorScore'] = 0.
+
 
     # if action == Directions.STOP: features['stop'] = 1
     # rev = Directions.REVERSE[state.getAgentState(self.index).configuration.direction]
@@ -504,6 +510,216 @@ class OffensiveQAgent(ApproximateQAgent):
     # features['ghost-distance'] /= -6.
     features['ghost-distance'] = 0
     features['distanceToFood'] /= 1. *(walls.width * walls.height)
+    features.divideAll(10.0)
+
+    return features
+
+  def getFeatures2(self, state, action):
+    # Design Reward for carrying dots, eaten by ghost, minus by time, 
+
+    # extract the grid of food and wall locations and get the ghost locations
+    food = self.getFood(state)
+    walls = state.getWalls()
+    myPrevState = state.getAgentState(self.index)
+    myPrePos = myPrevState.getPosition()
+    # teammatePositions = [state.getAgentPosition(teammate)for teammate in self.getTeam(state)]
+
+    # capsulePos = self.getCapsules(state) 
+    # isHome = state.isRed(myPrePos)
+    # enemy = self.getOpponents(state)
+    otherTeam = state.getBlueTeamIndices() if state.isOnRedTeam(self.index) else state.getRedTeamIndices()
+
+    features = util.Counter()
+    features["bias"] = 1.0
+
+    successor = self.getSuccessor(state, action)
+    foodList = self.getFood(successor).asList()
+    features['successorScore'] = -len(foodList)/21.
+    myState = successor.getAgentState(self.index)
+    myPos = myState.getPosition()
+
+    checkall = 0
+    # if myPrevState.isPacman: # uncomment it for optimal action, use it for more interesting randomness result
+      # check for the distance between ghost
+      # unindent from {
+    dis = []
+    for index in otherTeam:
+      otherAgentState = state.data.agentStates[index]
+      if otherAgentState.scaredTimer > self.PowerTimer: # power capsule 
+        checkall += 1
+      if otherAgentState.isPacman: continue
+      ghostPosition = otherAgentState.getPosition()
+      if ghostPosition == None: continue
+      features["#-of-ghosts-1-step-away"] = 0 if not features["#-of-ghosts-1-step-away"] else features["#-of-ghosts-1-step-away"]
+      if otherAgentState.scaredTimer <= self.PowerTimer:
+        features["#-of-ghosts-1-step-away"] += int(myPos in Actions.getLegalNeighbors(ghostPosition, walls))
+        dis += [float(self.getMazeDistance(ghostPosition, myPos))]
+    # if len(dis)!=0: features['ghost-distance'] = min(dis)
+      # to here}
+    # print food, myPos
+    dist = closestFood((int(myPos[0]),int(myPos[1])), food, walls)
+    if dist is not None:
+      features["closest-food"] = float(dist) / (walls.width * walls.height)
+
+    # legalAC = Actions.getLegalNeighbors((int(myPos[0]),int(myPos[1])), walls)
+    legalAc = Actions.getPossibleActions(myState.configuration, walls)
+
+    if not features["#-of-ghosts-1-step-away"] and food[int(myPos[0])][int(myPos[1])]:
+      features["eats-food"] = 1.0
+    if features["#-of-ghosts-1-step-away"] and len(legalAc)<=2:
+      # rev = Directions.REVERSE[myPrevState.configuration.direction]
+      for act in legalAc:
+        if act == Directions.STOP: continue
+        rev = Actions.reverseDirection(act)
+        if action!=rev:
+          features['escape'] = -1
+          # features["closest-food"] = 0
+          # features['successorScore'] = 0
+    features.divideAll(10.0)
+
+    return features
+
+
+class DeffensiveQAgent(ApproximateQAgent):
+  """
+     Deffensive ApproximateQLearningAgent
+
+     Only have to overwrite
+     __init__() and final() functions.
+  """
+  def __init__(self, index, timeForComputing = .1, extractor='DeffenseExtractor', **args):
+    ApproximateQAgent.__init__(self, index, timeForComputing, **args)
+    # self.featExtractor = util.lookup(extractor, globals())()
+    self.filename = "deffensive.train"
+    # self.weights = util.Counter({'numInvaders': -1000, 'onDefense': 100, 'invaderDistance': -10, 'stop': -100, 'reverse': -2, 'bias': 0, 'distanceToMiddleD': -10, 'scaredDistance': -10})
+    # # initialize weights
+
+    if self.numTraining == 0:
+      self.epsilon = 0.0    # no exploration
+      self.alpha = 0.0      # no learning
+      self.weights = util.Counter({
+        'numInvaders': 16.470010138965772, 
+        'distanceToMiddleD': 5.532150686258845, 
+        'successorScore': 171.19528245826652, 
+        'scaredDistance': 0.0855915228745781, 
+        'invaderDistance': -0.2610076844304779, 
+        'bias': -197.97963869186557})
+      # if os.path.exists(self.filename):
+      #   print 'loading weights...'
+          # self.epsilon = 0.0    # no exploration
+          # self.alpha = 0.0      # no learning
+      #   with open(self.filename, "rb") as f:
+      #     self.weights = pickle.load(f)
+
+  def final(self, state):
+    "Called at the end of each game."
+    # call the super-class final method
+    ApproximateQAgent.final(self, state)
+    print self.index, self.getWeights()
+
+  def observationFunction(self, state):
+    """
+      This is where we ended up after our last action.
+      The simulation should somehow ensure this is called
+    """
+    if not self.lastState is None:
+      reward = (state.getScore() - self.lastState.getScore())
+      
+      # pseudo reward
+      reward -= 1. # one time step cost
+
+      self.observeTransition(self.lastState, self.lastAction, state, reward)
+
+    return CaptureAgent.observationFunction(self, state)
+
+
+  def getFeatures(self, state, action):
+
+    food = self.getFoodYouAreDefending(state)
+    walls = state.getWalls()
+    myPrevState = state.getAgentState(self.index)
+    myPosition = myPrevState.getPosition()
+    # get middle
+
+    #midPosition=[(walls.width/2-1, i) for i in range(1,walls.height-1)]
+    #for i in midPosition:
+    #  if state.hasWall(i[0], i[1]):
+    #    midPosition.remove(i)
+    midPosition = [(15, 1), (15, 2), (15, 4), (15, 5), (15, 7), (15, 8), (15, 11), (15, 12), (15, 13), (15, 14)]
+    midPositionT = [(i[0]+1, 15-i[1]) for i in midPosition]
+
+    # teammatePositions = [state.getAgentPosition(teammate)for teammate in self.getTeam(state)]
+
+    successor = self.getSuccessor(state, action)
+    myState = successor.getAgentState(self.index)
+    myPos = myState.getPosition()
+
+    features = util.Counter()
+
+    features["bias"] = 1.0
+
+    '''features["bias"] = 1.0 
+    features['onDefense'] = 1.0
+    if myState.isPacman: features['onDefense'] = 0.0'''
+    # successor = self.getSuccessor(state, action)
+    foodList = self.getFoodYouAreDefending(state).asList()
+
+
+    enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
+    invaders = [a for a in enemies if a.isPacman and a.getPosition() != None]
+    features['numInvaders'] = -len(invaders)
+    if len(invaders) > 0:
+      dists = [self.getMazeDistance(myPos, a.getPosition()) for a in invaders]
+      # tempL = []
+      # for i in midPosition:
+      #   tempa = -1
+      #   temp = 1000000
+      #   for a in invaders:
+      #     '''try:
+      #       if self.getMazeDistance(i, a.getPosition()) < self.getMazeDistance(myPos, a.getPosition()):
+      #         tempL.append(self.getMazeDistance(myPos, i)-self.getMazeDistance(i, a.getPosition()))
+      #       else:
+      #         tempL.append(0)
+      #     except:
+      #       tempL.append(0)
+      #       continue'''
+      #     if temp > self.getMazeDistance(i, a.getPosition()):
+      #       temp = self.getMazeDistance(i, a.getPosition())
+      #       tempa = i
+      # tempL.append(self.getMazeDistance(tempa, myPos))
+      #features['distanceToMiddleDiffer'] = max(tempL) * 1.0 /(walls.width * walls.height)
+      # features['distanceToMiddleD'] = min(tempL) * 1.0 /(walls.width * walls.height)
+      # tempL = [self.getMazeDistance(myPos, i) for i in midPosition]
+      # features['distanceToMiddleD'] = min(tempL) * -1.0 /(walls.width * walls.height)
+      features['invaderDistance'] = min(dists) * 1.0 /(walls.width * walls.height)
+      try:
+        capsulePos = self.getCapsulesYouAreDefending(state)
+        if myState.scaredTimer > 0:
+          features['scaredDistance'] = (min(dists) - myState.scaredTimer) * 1.0 /(walls.width * walls.height)
+        else:
+          features['scaredDistance'] = 0
+      except:
+        features['scaredDistance'] = 0
+    else:
+    # features['scaredDistance'] = 0
+      tempL = sorted([self.getMazeDistance(myPos, i) for i in midPosition])
+      # if myPos[0] < 13:
+      features['distanceToMiddleD'] = max(tempL) * -1.0 /(walls.width * walls.height)
+    # features['back-home'] =  - 1.*self.getMazeDistance(self.start, myPos) / (walls.width * 5.)
+
+    # if action == Directions.STOP: features['stop'] = 1
+    # rev = Directions.REVERSE[state.getAgentState(self.index).configuration.direction]
+    # if action == rev: features['reverse'] = -1
+
+    '''enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
+    foodList = self.getFood(successor).asList()
+    features['successorScore'] = -len(foodList)/60.
+    if len(foodList) > 0: # This should always be True,  but better safe than sorry
+      myState = successor.getAgentState(self.index)
+      myPos = myState.getPosition()
+      minDistance = min([self.getMazeDistance(myPos, food) for food in foodList])
+      features['distanceToFood'] = float(minDistance)'''
+
     features.divideAll(10.0)
 
     return features
