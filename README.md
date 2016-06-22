@@ -1,4 +1,4 @@
-# pacmanCTF
+# Berkeley pacmanCTF using Reinforcement Learning
 
 ## Training
 
@@ -8,6 +8,10 @@ for example, Red team as offender, Blue team as defender, train for 5 times and 
 `python capture.py -r superTeam --keys0 --keys1 -x 5 -n 7`
 
 ### Deffensive Q Agent
+
+### Training together
+
+`python capture.py -r superTeam -x 5 -n 7`
 
 ## Testing
 If need to use pretrain weights, need to uncomment some lines in `__init__`, otherwise, best weight is use
