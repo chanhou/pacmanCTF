@@ -497,8 +497,10 @@ class OffensiveQAgent(ApproximateQAgent):
       back_home = True
 
     if back_home:
-      # features['back-home'] =  - 1.*self.getMazeDistance(capsulePos[0], myPos) / (walls.width * 5.)
-      features['back-home'] =  - 1.*self.getMazeDistance(self.start, myPos) / (walls.width * 5.)
+      try:
+        features['back-home'] =  - 1.*self.getMazeDistance(capsulePos[0], myPos) / (walls.width * 5.)
+      except:
+        features['back-home'] =  - 1.*self.getMazeDistance(self.start, myPos) / (walls.width * 5.)
       features['distanceToFood'] = 0.
       # features['successorScore'] = 0.
 
