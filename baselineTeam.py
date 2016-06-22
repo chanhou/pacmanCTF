@@ -31,7 +31,7 @@ from util import nearestPoint
 # Team creation #
 #################
 def createTeam(index, isRed,
-               first = 'OffensiveReflexAgent', second = 'OffensiveReflexAgent', third = 'DefensiveReflexAgent'):
+               first = 'DefensiveReflexAgent', second = 'OffensiveReflexAgent', third = 'DefensiveReflexAgent'):
   """
   This function should return a list of two agents that will form the
   team, initialized using firstIndex and secondIndex as their agent

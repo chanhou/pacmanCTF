@@ -29,7 +29,7 @@ import os.path
 from game import Directions
 import game
 from util import nearestPoint
-import numpy as np
+# import numpy as np
 
 #################
 # Team creation #
